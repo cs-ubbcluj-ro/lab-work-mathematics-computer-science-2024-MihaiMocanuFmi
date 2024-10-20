@@ -1,0 +1,190 @@
+Language Specification C-- (C, but worse):
+0 Conventions:
+    (...) -> groups: (x | y) | z <=> x | z or y | z
+                     (x | y) z   <=> xz or yz
+    (x)* -> zero or more x
+    (x)+ -> one or more x
+    (x)? -> zero or one x
+    'x' -> represents the terminal x.
+    epsilon -> empty
+1 Language Definition:
+    1.1 Alphabet:
+        a. Upper (A-Z) and lower case letters (a-z) of the English alphabet
+        b. Underline character '_'
+        c. Decimal digits (0-9)
+    1.2 Lexic:
+        a. Special symbols, representing:
+            - operators
+                conditional_operator    ::= '<' | '<=' | '==' | '>=' | '>'
+                assignment_operator     ::= '=' | '+=' | '-=' | '*='
+                arith_binary_operator   ::= '+' | '-' | '*' | '/'
+                arith_unary_operator    ::= '++' | '--'
+                logic_binary_operator   ::= '||' | '&&'
+                logic_unary_operator    ::= '!'
+            - separators:
+                whitespace      ::= (' ' | '\t' | '\n')+
+                end_instruction ::= ';'
+            - reserved words:
+                -- void
+                -- char
+                -- int
+                -- double
+                -- const
+                -- if
+                -- else
+                -- while
+                -- return
+                -- struct
+                -- main
+                -- read
+                -- write
+        b. identifiers:
+        // A sequence of letters, underscores and digits, such that the first character is either a letter or an underscore. The rule is:
+                identifier ::= identifier_primitive_start(identifier_primitive_continuation)*
+                identifier_primitive_start ::= letter | '_'
+                letter ::= 'A' | 'B' | ... | 'Z' | 'a' | 'b' | ... | 'z'
+                identifier_primitive_continuation ::= identifier_primitive_start | digit
+                digit ::= '0' | '1' |...| '9'
+        c. constants
+            1. integers:
+            // An integer must not start with zero.
+                integer ::= +integer_primitive_constrain | -integer_primitive_constrain | integer_primitive_constrain
+                integer_primitive_constrain ::= digit_non_zero(integer_primitive)* | digit
+                digit_non_zero ::= '1' | '2' |...| '9'
+                integer_primitive ::= digit(integer_primitive)*
+            2. reals:
+                real ::= integer'.'integer_primitive
+            3. characters:
+            // Any char represented by the ascii table. Suppose that asciiToChar(code) represents the symbol associated with the ascii code
+                character ::= 'character_primitive'
+                character_primitive ::= asciiToChar(0) | asciiToChar(1) | ... | asciiToChar(127)
+            4. string literals:
+                string ::= '"'string_primitive'"'
+                string_primitive ::= (character_primitive)*
+                string_non_empty ::= '"'string_non_empty_primitive'"'
+                string_non_empty_primitive ::= character_primitive(character_primitive)*
+2 Syntax:
+    program ::= include_list program_body
+
+    include_list ::= (include)*
+    include ::= '#'include lib \n
+    lib ::= '"'filename'"' | '<'filename'>'
+    filename ::= (digit)*identifier(.(digit)*identifier)?                                                               /// NOTE: Filenames can start with digits. (Extensions too (probably))
+
+    program_body ::= ((var_def_list | struct_def_list | function_list) program_body) | main_funct
+
+    var_def_list ::= (var_def)+
+    var_def ::= var_type identifier (var_init)?end_instruction                                                          /// LIMITATION: int a, b; is not supported. int a; int b; is supported.
+              | var_type identifier'[' ']' (var_array_init)?end_instruction                                             /// LIMITATION: Arrays can't have a size defined: int arr[3] = {1, 2, 3};
+                                                                                                                        /// LIMITATION: Multi-dimensional arrays are not supported: int arr[][];
+    var_type ::= (const)? char | (const)? int | (const)? double
+               | char const | int const | double const
+    var_init ::= '=' var_get_value
+    var_get_value ::= r_value | l_value
+    r_value ::= integer | real | character | string | function_call | expression
+    expression ::= var_get_value (arith_binary_operator var_get_value)?                                                 /// LIMITATION: '(' and ')' are not supported, so "(a + b) * c" is not valid
+    l_value ::= identifier | struct_member | identifier'['integer']'
+    struct_member ::= identifier'.'identifier | struct_member'.'identifier
+    var_array_init ::= '=' '{' (var_get_value (',' var_get_value)* )* '}'                                               /// NOTE: empty array syntax { } is supported
+
+    struct_def_list ::= (struct_def '\n')+
+    struct_def ::= 'struct' identifier '{' var_def_list '}' identifier (',' identifier)?end_instruction                 /// NOTE: Empty structs are allowed
+                                                                                                                        /// LIMITATION: Struct object variables can only be defined globally, in struct definition.
+                                                                                                                        /// LIMITATION: At least one struct object variable must be defined.
+    function_list ::= (function_def)+
+    function_def ::= function_return_type function_name'(' (function_param_list)? ')' '{' function_body '}'
+    function_name ::= identifier
+    function_return_type ::= void | var_type
+    function_param_list ::= function_param (',' function_param)*
+    function param ::= var_type identifier
+    function_body ::= sub_program return (var_get_value)? end_instruction
+
+    sub_program ::= (instruction sub_program)?
+    instruction ::= var_def_list | while_struct | if_struct | function_call | var_modify | var_increment | input_stream | output_stream | return (var_get_value)? end_instruction
+
+    while_struct ::= while '(' cond ')' '{' sub_program '}'
+    condition ::= condition_element (logic_binary_operator condition_element)*                                          /// LIMITATION: '(' and ')' are not supported, so "(a or b) and c" is not valid
+    condition_element = (logic_unary_operator)* condition_subelement                                                    /// NOTE: ! can be chained: !!!!TRUE <=> TRUE
+    condition_subelement ::= (l_value | r_value) conditional_operator (l_value | r_value)                               /// LIMITATION: Implicit condition evaluation is not supported: if (isActive) ...
+
+    if_struct ::= if_header '{' sub_program '}' (else ('{' sub_program '}' | if_struct))?
+    if_header ::= if '(' cond ')'
+
+    function_call ::= function_name'(' (function_param_list_values)? )end_instruction
+    function_param_list_values ::= var_get_value (',' var_get_value)*
+
+    var_modify ::= l_value assignment_operator expression
+
+    var_increment ::= l_value arith_unary_operator end_instruction                                                      /// LIMITATION: variables cannot be incremented inside expressions/instructions: arr[i++] OR if (i++ < len)
+
+    input_stream ::= read'('l_value')'end_instruction
+    output_stream ::= write'('var_get_value')'end_instruction
+
+    main_funct ::= int main'('')' '{' function_body '}'
+
+
+
+
+3 Example:
+
+#include <input.h>                                                                                                      /// NOTE: this example isn't a meaningful program.
+#include "output.h"
+
+const char text[] = {'a', '*', 'b', '=', 'c'};
+int a = 3;
+int b = 4;
+int sum = a + b;
+
+int _computeHypotenuse(int a, int b)
+{
+    a = a * a;
+    return a + b * b;
+}
+
+struct Test
+{
+    int model = 2;                                                                                                      /// NOTE: C doesn't allow this, but this grammar does (at least for now).
+} examen;
+
+int examenCopy = examen.model;
+
+void printText()
+{
+    int i = 0;
+    while (i < 4)
+    {
+        write(text[i]);
+    }
+    return;
+}
+
+int main()
+{
+    int c;
+    c = 2 + 3 + 4;
+    if (c + 2 <= 2 + 3 + 4)
+    {
+        return c;
+    }
+    else if (c + 2 == 2 + 3 + 4)
+    {
+        c *= 3;
+    }
+    else
+    {
+        int d;
+        read(d);
+        c -= d;
+    }
+    c++;
+    write(c);
+    printText()
+    return 1;
+}
+
+
+
+
+
+
+
