@@ -1,0 +1,32 @@
+// Example of format:
+// #STATES:
+// stateType1, name1;
+// stateType2, name2;
+// stateType3, name3;
+// stateType4, name4;
+// #TRANSITIONS:
+// nextState1, valueTag1, transitionValue1 | nextState2, valueTag2, transitionValue2 | nextState3, valueTag3, transitionValue3;
+// nextState1, valueTag1, transitionValue1 | nextState2, valueTag2, transitionValue2 |
+// nextState1, valueTag1, transitionValue1 | nextState2, valueTag2, transitionValue2 | nextState3, valueTag3, transitionValue3;
+// nextState1, valueTag1, transitionValue1 | nextState2, valueTag2, transitionValue2 |
+//
+// So documentation:
+// "#STATES:\n"
+// ([1-3]"," [0-9a-zA-Z]*';\n')*
+// "#TRANSITIONS:\n"
+// ([0-9]+', '[0-5]', '[0-9a-zA-Z]* (' | ')*)?';\n'
+// "#END"
+//
+#STATES:
+1, start;   // 0
+3, Q;       // 1
+3, P;       // 2
+3, R;       // 3
+2, Final;   // 4
+#TRANSITIONS:
+0, 2, 10 | 1, 2, 100;               // 0
+2, 2, 20;                           // 1
+3, 2, 30 | 4, 2, 300 | 0, 2, 300;   // 2
+4, 2, 40;                           // 3
+;                                   // 4
+#END;
